@@ -86,6 +86,46 @@ Function Set-ZscalerAtpDenyList
 }
 
 
+Function Get-ZscalerIPv4DestGroups
+{
+    Invoke-RestMethod -URI ("{0}/api/v1/ipDestinationGroups/lite" -f $script:ZiaApiSession.ApiRoot) -Method Get -ContentType 'application/json' -UseBasicParsing -WebSession $script:ZiaApiSession.SessionVariable
+}
+
+Function Get-ZscalerIPv4DestGroup
+{
+    param
+    (
+        [Parameter(Mandatory = $true)] [string] $GroupName
+    )
+
+    if($group = Get-ZscalerIPv4DestGroups | ?{$_.name -eq $GroupName})
+    {
+        Invoke-RestMethod -URI ("{0}/api/v1/ipDestinationGroups/{1}" -f $script:ZiaApiSession.ApiRoot,$group.id) -Method Get -ContentType 'application/json' -UseBasicParsing -WebSession $script:ZiaApiSession.SessionVariable
+    }
+    else 
+    {
+        Throw "Group not found:  $GroupName"
+    }
+}
+
+Function Set-ZscalerIPv4DestGroup
+{
+    param
+    (
+          [Parameter(Mandatory = $true)] [PSCustomObject] $Group
+        , [Parameter(Mandatory = $true)] [string[]] $IpList
+    )
+
+    Invoke-RestMethod -URI ("{0}/api/v1/status" -f $script:ZiaApiSession.ApiRoot) -Method Get -ContentType 'application/json' -UseBasicParsing  -WebSession $script:ZiaApiSession.SessionVariable
+
+    $Group.addresses = $IpList | ?{$_ -notlike "*:*"} | Select-Object -Unique
+    $body = $Group | ConvertTo-Json
+
+    Invoke-RestMethod -URI ("{0}/api/v1/ipDestinationGroups/{1}" -f $script:ZiaApiSession.ApiRoot,$Group.Id) -Method Put -ContentType 'application/json' -UseBasicParsing -Body $body -WebSession $script:ZiaApiSession.SessionVariable
+
+    Invoke-RestMethod -URI ("{0}/api/v1/status/activate" -f $script:ZiaApiSession.ApiRoot) -Method Post -ContentType 'application/json' -UseBasicParsing  -WebSession $script:ZiaApiSession.SessionVariable
+}
+
 
 Function Get-MISPAttributes
 {
@@ -180,5 +220,7 @@ Export-ModuleMember -Function Connect-ZscalerAPI
 Export-ModuleMember -Function Disconnect-ZscalerAPI
 Export-ModuleMember -Function Get-ZscalerAtpDenyList
 Export-ModuleMember -Function Set-ZscalerAtpDenyList
+Export-ModuleMember -Function Get-ZscalerIPv4DestGroup
+Export-ModuleMember -Function Set-ZscalerIPv4DestGroup
 
 Export-ModuleMember -Function Get-MISPAttributes

@@ -1,5 +1,5 @@
 
-# Import-Module C:\_Active\Zscaler\MispZiaSync
+ Import-Module C:\_Active\Zscaler\MispZiaSync -Force
 
 <#
     $zcloudname = 
@@ -10,11 +10,23 @@
     $mispurl
     $misptagfilter
 #>
+$ErrorActionPreference = "Stop"
 
 Connect-ZscalerAPI -CloudName $zcloudname -ApiKey $zapikey -ZscalerAdminCred $zcr 
 
-$attributes = Get-MISPAttributes -ApiKey $mispkey -UriBase $mispurl -MispAttributeType url -LookbackDays 2 -Tags $misptagfilter
 
+#region IP Block List
+$attributes = Get-MISPAttributes -ApiKey $mispy -UriBase $mispurl  -MispAttributeType ip-dst -LookbackDays 2 -Tags $misptagfilter
+
+$g = Get-ZscalerIPv4DestGroup -GroupName $ZDestIpGroup
+
+Set-ZscalerIPv4DestGroup -Group $g -IpList @($attributes.indicator)
+
+
+
+# URL deny list
+$attributes = Get-MISPAttributes -ApiKey $mispkey -UriBase $mispurl -MispAttributeType url -LookbackDays 2 -Tags $misptagfilter
+#endregion
 
 # strip off protocols and dedup
 $urls = @{}
@@ -31,5 +43,7 @@ foreach($a in $attributes)
 }
 
 Set-ZscalerAtpDenyList -UrlList $urls.Keys
+
+
 
 Disconnect-ZscalerAPI
