@@ -9,10 +9,12 @@ $zcr = Get-Credential -Message "Enter non-SAML user credentials for ZIA admin co
 Connect-ZscalerAPI -CloudName $zcloudname -ApiKey $zapikey -ZscalerAdminCred $zcr 
 ```
 
-## Get IP Destination Indicators from MISP
+## Get IP Destination Indicators from MISP  (or some other source)
 ```
+$mispurl = "https://MISP_name_without_trailing_slash"
+
 #region IP Block List
-$attributes = Get-MISPAttributes -ApiKey $mispy -UriBase $mispurl  -MispAttributeType ip-dst -LookbackDays 2 
+$attributes = Get-MISPAttributes -ApiKey $mispkey -UriBase $mispurl  -MispAttributeType ip-dst -LookbackDays 2 
 ```
 
 ## Get Zscaler IP Group by Name and Set IP Addresses

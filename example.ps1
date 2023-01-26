@@ -1,5 +1,6 @@
 
- Import-Module C:\_Active\Zscaler\MispZiaSync -Force
+Import-Module PsMISP -Force
+Import-Module ZiaPolicySync -Force
 
 <#
     $zcloudname = 
@@ -43,7 +44,6 @@ foreach($a in $attributes)
 }
 
 Set-ZscalerAtpDenyList -UrlList $urls.Keys
-
 
 
 Disconnect-ZscalerAPI
