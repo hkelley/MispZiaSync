@@ -71,6 +71,14 @@ Function Get-ZscalerAtpDenyList
     Invoke-RestMethod -URI ("{0}/api/v1/security/advanced" -f $script:ZiaApiSession.ApiRoot) -Method Get -ContentType 'application/json' -UseBasicParsing -WebSession $script:ZiaApiSession.SessionVariable
 }
 
+Function Set-ZscalerChangeActivation
+{
+    if($status = Invoke-RestMethod -URI ("{0}/api/v1/status/activate" -f $script:ZiaApiSession.ApiRoot) -Method Post -ContentType 'application/json' -UseBasicParsing -WebSession $script:ZiaApiSession.SessionVariable)
+    {
+        Write-Host "Activation: $status"
+    }
+}
+
 Function Set-ZscalerAtpDenyList 
 {
     param
@@ -132,3 +140,4 @@ Export-ModuleMember -Function Get-ZscalerAtpDenyList
 Export-ModuleMember -Function Set-ZscalerAtpDenyList
 Export-ModuleMember -Function Get-ZscalerIPv4DestGroup
 Export-ModuleMember -Function Set-ZscalerIPv4DestGroup
+Export-ModuleMember -Function Set-ZscalerChangeActivation
