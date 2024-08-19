@@ -32,13 +32,12 @@ function ObfuscateApiKey {
 }
 
 
-function Connect-ZscalerAPI
-{
-    param
-    (
+function Connect-ZscalerAPI {
+    param (
           [Parameter(Mandatory = $true)] [string] $CloudName 
         , [Parameter(Mandatory = $true)] [string] $ApiKey
         , [Parameter(Mandatory = $true)] [pscredential] $ZscalerAdminCred
+        , [switch] $PassThru
     )
 
     $script:ZiaApiSession.ApiRoot =   "https://zsapi.{0}.net" -f $CloudName
@@ -53,36 +52,34 @@ function Connect-ZscalerAPI
         timestamp = $loginTs
     } | ConvertTo-Json
 
-    if($ret = Invoke-RestMethod -URI ("{0}/api/v1/authenticatedSession" -f $script:ZiaApiSession.ApiRoot) -Method Post -Body $body -ContentType 'application/json' -UseBasicParsing -SessionVariable sv )
-    {
+    if($ret = Invoke-RestMethod -URI ("{0}/api/v1/authenticatedSession" -f $script:ZiaApiSession.ApiRoot) -Method Post -Body $body -ContentType 'application/json' -UseBasicParsing -SessionVariable sv ) {
         Write-Verbose $ret
         $script:ZiaApiSession.SessionVariable = $sv
+        if($PassThru) {
+            # Pass the sessions variable so that the user can make API calls not yet supported by this module
+            $sv
+        }
     }
 }
 
 
-Function Disconnect-ZscalerAPI
-{
+Function Disconnect-ZscalerAPI {
     Invoke-RestMethod -URI ("{0}/api/v1/authenticatedSession" -f $script:ZiaApiSession.ApiRoot) -Method Delete  -ContentType 'application/json' -UseBasicParsing -WebSession $script:ZiaApiSession.SessionVariable
 }
 
-Function Get-ZscalerAtpDenyList
-{
+Function Get-ZscalerAtpDenyList {
     Invoke-RestMethod -URI ("{0}/api/v1/security/advanced" -f $script:ZiaApiSession.ApiRoot) -Method Get -ContentType 'application/json' -UseBasicParsing -WebSession $script:ZiaApiSession.SessionVariable
 }
 
-Function Set-ZscalerChangeActivation
-{
+Function Set-ZscalerChangeActivation {
     if($status = Invoke-RestMethod -URI ("{0}/api/v1/status/activate" -f $script:ZiaApiSession.ApiRoot) -Method Post -ContentType 'application/json' -UseBasicParsing -WebSession $script:ZiaApiSession.SessionVariable)
     {
         Write-Host "Activation: $status"
     }
 }
 
-Function Set-ZscalerAtpDenyList 
-{
-    param
-    (
+Function Set-ZscalerAtpDenyList {
+    param (
         [Parameter(Mandatory = $true)] [string[]] $UrlList
     )
 
@@ -94,32 +91,24 @@ Function Set-ZscalerAtpDenyList
 }
 
 
-Function Get-ZscalerIPv4DestGroups
-{
+Function Get-ZscalerIPv4DestGroups {
     Invoke-RestMethod -URI ("{0}/api/v1/ipDestinationGroups/lite" -f $script:ZiaApiSession.ApiRoot) -Method Get -ContentType 'application/json' -UseBasicParsing -WebSession $script:ZiaApiSession.SessionVariable
 }
 
-Function Get-ZscalerIPv4DestGroup
-{
-    param
-    (
+Function Get-ZscalerIPv4DestGroup {
+    param (
         [Parameter(Mandatory = $true)] [string] $GroupName
     )
 
-    if($group = Get-ZscalerIPv4DestGroups | ?{$_.name -eq $GroupName})
-    {
+    if($group = Get-ZscalerIPv4DestGroups | ?{$_.name -eq $GroupName}) {
         Invoke-RestMethod -URI ("{0}/api/v1/ipDestinationGroups/{1}" -f $script:ZiaApiSession.ApiRoot,$group.id) -Method Get -ContentType 'application/json' -UseBasicParsing -WebSession $script:ZiaApiSession.SessionVariable
-    }
-    else 
-    {
+    } else  {
         Throw "Group not found:  $GroupName"
     }
 }
 
-Function Set-ZscalerIPv4DestGroup
-{
-    param
-    (
+Function Set-ZscalerIPv4DestGroup {
+    param  (
           [Parameter(Mandatory = $true)] [PSCustomObject] $Group
         , [Parameter(Mandatory = $true)] [string[]] $IpList
     )
@@ -134,6 +123,55 @@ Function Set-ZscalerIPv4DestGroup
     Invoke-RestMethod -URI ("{0}/api/v1/status/activate" -f $script:ZiaApiSession.ApiRoot) -Method Post -ContentType 'application/json' -UseBasicParsing  -WebSession $script:ZiaApiSession.SessionVariable
 }
 
+
+Function Get-ZscalerFirewallFilteringRules {
+    if($result = Invoke-RestMethod -URI ("{0}/api/v1/firewallFilteringRules" -f $script:ZiaApiSession.ApiRoot) -Method Get -ContentType 'application/json' -UseBasicParsing -WebSession $script:ZiaApiSession.SessionVariable) {
+        $result
+    }
+}
+
+Function Output-RulesetObjects( $ConfigObject, $ListField) {
+    foreach($item in $ConfigObject."$ListField") {
+        if(-not ($name = $ConfigObject.configuredName)) {
+            $name = $ConfigObject.name
+        }
+        
+        [pscustomobject] @{
+            Item = $name
+            ItemType = $ConfigObject.type
+            Identifier = $item
+        }
+    } 
+}
+
+Function Get-ZscalerUrlAndFqdnXref {
+
+    $categories = @()
+
+    # Custom
+    if(!($categories += Invoke-RestMethod -URI ("{0}/api/v1/urlCategories?customOnly=true" -f $script:ZiaApiSession.ApiRoot) -Method Get -WebSession $script:ZiaApiSession.SessionVariable )) { 
+    
+        Throw "no data for custom URL categories"
+    }
+
+    foreach($cat in $categories) {
+        # Export both "modes" of category setting
+        Output-RulesetObjects -ConfigObject $cat -ListField "urls"
+        Output-RulesetObjects -ConfigObject $cat -ListField "dbCategorizedUrls"
+    }
+
+    $destGroups = Get-ZscalerIPv4DestGroups 
+
+    foreach($group in $destGroups) {
+
+        $g = Invoke-RestMethod -URI ("{0}/api/v1/ipDestinationGroups/{1}" -f $script:ZiaApiSession.ApiRoot,$group.id) -Method Get -WebSession $script:ZiaApiSession.SessionVariable
+
+        Output-RulesetObjects -ConfigObject $g -ListField "addresses"
+
+        Start-Sleep -Seconds 1
+    }
+}
+
 Export-ModuleMember -Function Connect-ZscalerAPI
 Export-ModuleMember -Function Disconnect-ZscalerAPI
 Export-ModuleMember -Function Get-ZscalerAtpDenyList
@@ -141,3 +179,5 @@ Export-ModuleMember -Function Set-ZscalerAtpDenyList
 Export-ModuleMember -Function Get-ZscalerIPv4DestGroup
 Export-ModuleMember -Function Set-ZscalerIPv4DestGroup
 Export-ModuleMember -Function Set-ZscalerChangeActivation
+Export-ModuleMember -Function Get-ZscalerFirewallFilteringRules
+Export-ModuleMember -Function Get-ZscalerUrlAndFqdnXref
