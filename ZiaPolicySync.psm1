@@ -83,11 +83,32 @@ Function Set-ZscalerAtpDenyList {
         [Parameter(Mandatory = $true)] [string[]] $UrlList
     )
 
+    $uri = "{0}/api/v1/security/advanced" -f $script:ZiaApiSession.ApiRoot
     $body = [PSCustomObject] @{
         blacklistUrls = $UrlList
     } | ConvertTo-Json
 
-    Invoke-RestMethod -URI ("{0}/api/v1/security/advanced" -f $script:ZiaApiSession.ApiRoot) -Method Put -ContentType 'application/json' -UseBasicParsing -Body $body  -WebSession $script:ZiaApiSession.SessionVariable
+    try {
+        Invoke-RestMethod -URI $uri -Method Put -ContentType 'application/json' -UseBasicParsing -Body $body  -WebSession $script:ZiaApiSession.SessionVariable
+    } catch [System.Net.WebException] {
+
+        if (    $_.Exception.Response.StatusCode -ne 400 ) {
+            throw $_
+        }
+
+        # If we received  {"code":"INVALID_INPUT_ARGUMENT"}   then pass along as a warning
+
+        if($_.Exception.Response) {
+            $s = $_.Exception.Response.GetResponseStream()
+            $s.Position = 0;
+            $sr = New-Object System.IO.StreamReader($s)
+            $err = $sr.ReadToEnd()
+            $sr.Close()
+            $s.Close()
+        }
+
+        Write-Warning ("Invoked {0},  received HTTP status {1}, {2} {3}" -f $uri,$_.Exception.Response.StatusCode,$_.Exception.Code,$err)
+    }
 }
 
 
